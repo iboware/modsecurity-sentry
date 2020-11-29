@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/iboware/modsecurity-sentry/svc"
 	"gopkg.in/fsnotify.v1"
 )
 
@@ -18,8 +19,9 @@ func main() {
 	sentryDSNEnv, hasDSN := os.LookupEnv("SENTRY_DSN")
 	logPathEnv, hasLogPath := os.LookupEnv("LOG_PATH")
 	logRawEnv, hasLogRaw := os.LookupEnv("LOG_RAW")
-
+	debugEnv, hasDebugEnv := os.LookupEnv("DEBUG")
 	isRaw := false
+	debug := false
 	logPath := "/var/log/audit"
 
 	if !hasDSN {
@@ -38,6 +40,12 @@ func main() {
 	if hasLogRaw {
 		if strings.ToLower(logRawEnv) == "true" {
 			isRaw = true
+		}
+	}
+
+	if hasDebugEnv {
+		if strings.ToLower(debugEnv) == "true" {
+			debug = true
 		}
 	}
 
@@ -64,7 +72,7 @@ func main() {
 	done := make(chan bool)
 
 	// start parser
-	go parseLog(isRaw)
+	go svc.WatchEvents(watcher, isRaw, debug)
 
 	<-done
 }

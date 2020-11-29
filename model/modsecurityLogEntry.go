@@ -1,4 +1,4 @@
-package main
+package model
 
 type ModsecurityLogEntry struct {
 	Transaction Transaction `json:"transaction"`

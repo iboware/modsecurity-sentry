@@ -1,4 +1,4 @@
-package main
+package svc
 
 import (
 	"encoding/json"
@@ -7,17 +7,23 @@ import (
 	"os"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/iboware/modsecurity-sentry/model"
 	"gopkg.in/fsnotify.v1"
 )
 
-//parseLog parses create file events and logs them into sentry.
-func parseLog(isRaw bool) {
+//watchEvents watches create file events and logs them into sentry.
+func WatchEvents(watcher *fsnotify.Watcher, isRaw bool, debug bool) {
 	for {
 		select {
 		// watch for events
 		case event := <-watcher.Events:
+			if debug {
+				fmt.Println("Event:", event)
+			}
+
 			if event.Op == fsnotify.Create {
 				// Open our jsonFile
+				fmt.Println("Event:", event)
 				jsonFile, err := os.Open(event.Name)
 				// if we os.Open returns an error then handle it
 				if err != nil {
@@ -38,7 +44,7 @@ func parseLog(isRaw bool) {
 }
 
 func logEvent(event []byte, isRaw bool) {
-	var entry ModsecurityLogEntry
+	var entry model.ModsecurityLogEntry
 	var sentryEvent *sentry.Event
 
 	// we unmarshal our byteArray which contains log entry
@@ -93,7 +99,7 @@ func logEvent(event []byte, isRaw bool) {
 }
 
 // createTags creates tags for sentry event.
-func createTags(m Message) map[string]string {
+func createTags(m model.Message) map[string]string {
 	var tags = make(map[string]string)
 
 	if m.Details.Accuracy != "" {
@@ -119,7 +125,7 @@ func createTags(m Message) map[string]string {
 }
 
 // createMessage creates message for sentry event.
-func createMessage(m Message) string {
+func createMessage(m model.Message) string {
 	var message string
 	message += m.Message + "\n"
 	message += "----------\n"
