@@ -55,7 +55,10 @@ func main() {
 
 	if err != nil {
 		log.Fatalf("sentry.Init: %s", err)
+	} else if debug {
+		fmt.Println("Logger initialized successfully.")
 	}
+
 	// Flush buffered events before the program terminates.
 	defer sentry.Flush(2 * time.Second)
 
@@ -65,10 +68,7 @@ func main() {
 
 	// starting at the root of the project, walk each file/directory searching for
 	// directories
-	if err := filepath.Walk(logPath, watchDir); err != nil {
-		fmt.Println("ERROR", err)
-	}
-
+	go watchPeriodically(logPath, 5)
 	done := make(chan bool)
 
 	// start parser
@@ -87,4 +87,23 @@ func watchDir(path string, fi os.FileInfo, err error) error {
 	}
 
 	return nil
+}
+
+// watchPeriodically triggers watchDir function periodically.
+func watchPeriodically(directory string, interval int) {
+	done := make(chan struct{})
+	go func() {
+		done <- struct{}{}
+	}()
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	defer ticker.Stop()
+	for ; ; <-ticker.C {
+		<-done
+		if err := filepath.Walk(directory, watchDir); err != nil {
+			fmt.Println(err)
+		}
+		go func() {
+			done <- struct{}{}
+		}()
+	}
 }

@@ -13,15 +13,19 @@ import (
 
 //watchEvents watches create file events and logs them into sentry.
 func WatchEvents(watcher *fsnotify.Watcher, isRaw bool, debug bool) {
+
+	if debug {
+		fmt.Println("Waiting for events...")
+	}
+
 	for {
 		select {
 		// watch for events
 		case event := <-watcher.Events:
-			if debug {
-				fmt.Println("Event:", event)
-			}
-
 			if event.Op == fsnotify.Create {
+				if debug {
+					fmt.Println("Event:", event)
+				}
 				// Open our jsonFile
 				fmt.Println("Event:", event)
 				jsonFile, err := os.Open(event.Name)
