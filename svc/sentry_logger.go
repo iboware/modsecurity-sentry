@@ -74,7 +74,7 @@ func logEvent(event []byte, isRaw bool, debug bool) {
 	if len(entry.Transaction.Messages) > 0 {
 		for _, message := range entry.Transaction.Messages {
 			sentryEvent.Message = createMessage(message)
-			sentryEvent.Tags = createTags(message)
+			sentryEvent.Tags = createTags(message, entry.Transaction)
 		}
 	} else {
 		sentryEvent.Message = entry.Transaction.Request.URI
@@ -111,7 +111,7 @@ func logEvent(event []byte, isRaw bool, debug bool) {
 }
 
 // createTags creates tags for sentry event.
-func createTags(m model.Message) map[string]string {
+func createTags(m model.Message, t model.Transaction) map[string]string {
 	var tags = make(map[string]string)
 
 	if m.Details.Accuracy != "" {
@@ -132,7 +132,12 @@ func createTags(m model.Message) map[string]string {
 	if m.Details.Ver != "" {
 		tags["ver"] = m.Details.Ver
 	}
-
+	if t.Request.Headers.Host != "" {
+		tags["host"] = t.Request.Headers.Host
+	}
+	if t.Request.Headers.UserAgent != "" {
+		tags["user_agent"] = t.Request.Headers.UserAgent
+	}
 	return tags
 }
 
