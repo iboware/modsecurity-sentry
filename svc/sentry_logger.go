@@ -77,7 +77,7 @@ func logEvent(event []byte, isRaw bool, debug bool) {
 			sentryEvent.Tags = createTags(message, entry.Transaction)
 		}
 	} else {
-		sentryEvent.Message = entry.Transaction.Request.URI
+		sentryEvent.Message = entry.Transaction.Request.URI + "\n"
 	}
 
 	if isRaw {
