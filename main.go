@@ -4,16 +4,13 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/iboware/modsecurity-sentry/svc"
-	"gopkg.in/fsnotify.v1"
+	"github.com/radovskyb/watcher"
 )
-
-var watcher *fsnotify.Watcher
 
 func main() {
 	sentryDSNEnv, hasDSN := os.LookupEnv("SENTRY_DSN")
@@ -62,48 +59,19 @@ func main() {
 	// Flush buffered events before the program terminates.
 	defer sentry.Flush(2 * time.Second)
 
-	// creates a new file watcher
-	watcher, _ = fsnotify.NewWatcher()
-	defer watcher.Close()
+	w := watcher.New()
 
-	// starting at the root of the project, walk each file/directory searching for
-	// directories
-	go watchPeriodically(logPath, 5)
-	done := make(chan bool)
-
-	// start parser
-	go svc.WatchEvents(watcher, isRaw, debug)
-
-	<-done
-}
-
-// watchDir gets run as a walk func, searching for directories to add watchers to
-func watchDir(path string, fi os.FileInfo, err error) error {
-
-	// since fsnotify can watch all the files in a directory, watchers only need
-	// to be added to each nested directory
-	if fi.Mode().IsDir() {
-		return watcher.Add(path)
+	// Only notify rename and move events.
+	w.FilterOps(watcher.Write, watcher.Create)
+	// Watch test_folder recursively for changes.
+	if err := w.AddRecursive(logPath); err != nil {
+		log.Fatalln(err)
 	}
+	// start parser
+	go svc.WatchEvents(w, isRaw, debug)
 
-	return nil
-}
-
-// watchPeriodically triggers watchDir function periodically.
-func watchPeriodically(directory string, interval int) {
-	done := make(chan struct{})
-	go func() {
-		done <- struct{}{}
-	}()
-	ticker := time.NewTicker(time.Duration(interval) * time.Second)
-	defer ticker.Stop()
-	for ; ; <-ticker.C {
-		<-done
-		if err := filepath.Walk(directory, watchDir); err != nil {
-			fmt.Println(err)
-		}
-		go func() {
-			done <- struct{}{}
-		}()
+	// Start the watching process - it'll check for changes every 100ms.
+	if err := w.Start(time.Millisecond * 100); err != nil {
+		log.Fatalln(err)
 	}
 }

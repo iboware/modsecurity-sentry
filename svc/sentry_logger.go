@@ -8,11 +8,11 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/iboware/modsecurity-sentry/model"
-	"gopkg.in/fsnotify.v1"
+	"github.com/radovskyb/watcher"
 )
 
 //watchEvents watches create file events and logs them into sentry.
-func WatchEvents(watcher *fsnotify.Watcher, isRaw bool, debug bool) {
+func WatchEvents(w *watcher.Watcher, isRaw bool, debug bool) {
 
 	if debug {
 		fmt.Println("Waiting for events...")
@@ -21,14 +21,15 @@ func WatchEvents(watcher *fsnotify.Watcher, isRaw bool, debug bool) {
 	for {
 		select {
 		// watch for events
-		case event := <-watcher.Events:
-			if event.Op == fsnotify.Create {
+		case event := <-w.Event:
+			if event.IsDir() {
+				continue
+			}
+			if event.Op == watcher.Create || event.Op == watcher.Write {
 				if debug {
 					fmt.Println("Event:", event)
 				}
-				// Open our jsonFile
-				fmt.Println("Event:", event)
-				jsonFile, err := os.Open(event.Name)
+				jsonFile, err := os.Open(event.Path)
 				// if we os.Open returns an error then handle it
 				if err != nil {
 					fmt.Println(err)
@@ -36,18 +37,22 @@ func WatchEvents(watcher *fsnotify.Watcher, isRaw bool, debug bool) {
 				// defer the closing of our jsonFile so that we can parse it later on
 				defer jsonFile.Close()
 
-				byteValue, _ := ioutil.ReadAll(jsonFile)
-				logEvent(byteValue, isRaw)
+				byteValue, err := ioutil.ReadAll(jsonFile)
+				if err == nil {
+					logEvent(byteValue, isRaw, debug)
+				} else if debug {
+					fmt.Println("ERROR:", err)
+				}
 			}
 
 			// watch for errors
-		case err := <-watcher.Errors:
+		case err := <-w.Error:
 			fmt.Println("ERROR", err)
 		}
 	}
 }
 
-func logEvent(event []byte, isRaw bool) {
+func logEvent(event []byte, isRaw bool, debug bool) {
 	var entry model.ModsecurityLogEntry
 	var sentryEvent *sentry.Event
 
@@ -98,7 +103,10 @@ func logEvent(event []byte, isRaw bool) {
 	sentryEvent.Tags["timestamp"] = entry.Transaction.TimeStamp
 	sentryEvent.Tags["client_ip"] = entry.Transaction.ClientIP
 
-	sentry.CaptureEvent(sentryEvent)
+	eventId := sentry.CaptureEvent(sentryEvent)
+	if debug {
+		fmt.Println("Captured Event: ", eventId)
+	}
 
 }
 

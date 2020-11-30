@@ -1,30 +1,29 @@
+FROM golang:1.15-alpine AS build_base
 
-FROM golang:1.15 as builder
+RUN apk add --no-cache git
 
-ENV APP_USER logagent
-ENV APP_HOME /go/src/modsecurity-sentry
+# Set the Current Working Directory inside the container
+WORKDIR /tmp/modsecurity-sentry
 
-RUN groupadd $APP_USER && useradd -m -g $APP_USER -l $APP_USER
-RUN mkdir -p $APP_HOME && chown -R $APP_USER:$APP_USER $APP_HOME
-
-WORKDIR $APP_HOME
-USER $APP_USER
-COPY  . .
+# We want to populate the module cache based on the go.{mod,sum} files.
+COPY go.mod .
+COPY go.sum .
 
 RUN go mod download
-RUN go mod verify
-RUN go build -o modsecurity-sentry
 
-FROM debian:buster
+COPY . .
 
-ENV APP_USER logagent
-ENV APP_HOME /go/src/modsecurity-sentry
+# Unit tests
+# RUN CGO_ENABLED=0 go test -v
 
-RUN groupadd $APP_USER && useradd -m -g $APP_USER -l $APP_USER
-RUN mkdir -p $APP_HOME
-WORKDIR $APP_HOME
+# Build the Go app
+RUN go build -o ./out/modsecurity-sentry .
 
-COPY --chown=0:0 --from=builder $APP_HOME/modsecurity-sentry $APP_HOME
+# Start fresh from a smaller image
+FROM alpine:3.12 
+RUN apk add ca-certificates
 
-USER $APP_USER
-CMD ["./modsecurity-sentry"]
+COPY --from=build_base /tmp/modsecurity-sentry/out/modsecurity-sentry /bin/modsecurity-sentry
+
+# Run the binary program produced by `go install`
+CMD ["modsecurity-sentry"]
